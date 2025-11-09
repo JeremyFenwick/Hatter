@@ -54,6 +54,14 @@ func Ok() *Response {
 	}
 }
 
+func NotFound() *Response {
+	return &Response{
+		Version: "1.1",
+		Status:  404,
+		Reason:  "Not Found",
+	}
+}
+
 func (response *Response) sizedBuffer() []byte {
 	size := 0
 	// Status line
