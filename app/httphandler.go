@@ -22,6 +22,7 @@ func HttpHandler(context tcp_server.Context) {
 
 	// Generate response
 	var response *http.Response
+	context.Logger.Println("Received request: %s", request)
 
 	switch request.Method {
 	case "GET":
