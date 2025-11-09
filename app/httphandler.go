@@ -48,8 +48,8 @@ func handleGet(request *http.Request, getFile tcp_server.GetFileFunc) *http.Resp
 		return http.Ok()
 	case strings.HasPrefix(request.Target, "/echo/"):
 		return textResponse(request.Target[6:])
-	case strings.HasPrefix(request.Target, "/file/"):
-		fileData, err := getFile(request.Target[6:])
+	case strings.HasPrefix(request.Target, "/files/"):
+		fileData, err := getFile(request.Target[7:])
 		if err != nil {
 			return http.NotFound()
 		}
