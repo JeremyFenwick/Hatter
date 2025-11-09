@@ -1,6 +1,7 @@
 ﻿package tcp_server
 
 import (
+	"errors"
 	"log"
 	"net"
 )
@@ -38,10 +39,16 @@ func (s *Server) Serve() error {
 	s.Logger.Println("Listening on", s.Listener.Addr())
 	for {
 		conn, err := s.Listener.Accept()
-		s.Logger.Println("Accepted connection from", conn.RemoteAddr())
 		if err != nil {
+			var ne net.Error
+			if errors.As(err, &ne) && ne.Temporary() {
+				s.Logger.Println("Temporary accept error:", err)
+				continue
+			}
 			return err
 		}
+
+		s.Logger.Println("Accepted connection from", conn.RemoteAddr())
 		go s.Handler(conn)
 	}
 }
