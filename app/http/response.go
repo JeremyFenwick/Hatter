@@ -96,6 +96,13 @@ func Created() *Response {
 	}
 }
 
+func (response *Response) SetHeader(key, value string) {
+	if response.Headers == nil {
+		response.Headers = make(map[string]string)
+	}
+	response.Headers[key] = value
+}
+
 func loadString(buffer []byte, str string) []byte {
 	return append(buffer, str...)
 }

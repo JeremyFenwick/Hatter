@@ -32,6 +32,7 @@ func HttpHandler(context tcp_server.Context) {
 	writer := bufio.NewWriter(context.Connection)
 
 	for {
+		var exit bool
 		// Read request
 		request, err := http.ReadRequest(reader)
 		if err != nil {
@@ -56,11 +57,24 @@ func HttpHandler(context tcp_server.Context) {
 			response = http.NotFound()
 		}
 
+		// Add closed to the response if required
+		if value, ok := request.Headers["Connection"]; ok {
+			if strings.ToLower(value) == "close" {
+				response.SetHeader("Connection", "close")
+				exit = true
+			}
+		}
+
 		// Send response
 		context.Logger.Println("Sending response: %s", response)
 		err = response.WriteTo(writer)
 		if err != nil {
 			context.Logger.Printf("Error writing response: %s", err)
+		}
+
+		// Exit if required
+		if exit {
+			return
 		}
 	}
 }
@@ -90,6 +104,7 @@ func handleGet(request *http.Request, fileStore tcp_server.FileStore) (*http.Res
 	if value, ok := request.Headers["User-Agent"]; ok {
 		return generateResponse([]byte(value), Text, compression)
 	}
+
 	// Check for the target
 	switch {
 	case request.Target == "/":
@@ -102,9 +117,10 @@ func handleGet(request *http.Request, fileStore tcp_server.FileStore) (*http.Res
 			return http.NotFound(), nil
 		}
 		return generateResponse(fileData, Data, compression)
-	default:
-		return http.NotFound(), nil
 	}
+
+	// No match found
+	return http.NotFound(), nil
 }
 
 func generateResponse(message []byte, content Content, compression Compression) (*http.Response, error) {
@@ -117,9 +133,9 @@ func generateResponse(message []byte, content Content, compression Compression) 
 	// Add the content type
 	switch content {
 	case Text:
-		response.Headers["Content-Type"] = "text/plain"
+		response.SetHeader("Content-Type", "text/plain")
 	case Data:
-		response.Headers["Content-Type"] = "application/octet-stream"
+		response.SetHeader("Content-Type", "application/octet-stream")
 	}
 
 	// Add the compression if required
@@ -129,13 +145,13 @@ func generateResponse(message []byte, content Content, compression Compression) 
 		if err != nil {
 			return nil, err
 		}
-		response.Headers["Content-Encoding"] = "gzip"
+		response.SetHeader("Content-Encoding", "gzip")
 	default:
 		data = message
 	}
 
 	// Add the content length
-	response.Headers["Content-Length"] = strconv.Itoa(len(data))
+	response.SetHeader("Content-Length", strconv.Itoa(len(data)))
 
 	// Add the body
 	response.Body = data
