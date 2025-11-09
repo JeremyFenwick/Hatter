@@ -25,7 +25,7 @@ func HttpHandler(context tcp_server.Context) {
 
 	switch request.Method {
 	case "GET":
-		response = handleGet(request)
+		response = handleGet(request, context.GetFile)
 	default:
 		response = http.NotFound()
 	}
