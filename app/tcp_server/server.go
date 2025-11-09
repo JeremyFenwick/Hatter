@@ -25,6 +25,7 @@ type Config struct {
 }
 
 func New(config *Config) (*Server, error) {
+	config.Logger.Println("Creating server with address: %s", config.Address)
 	listener, err := net.ListenTCP("tcp", config.Address)
 	if err != nil {
 		return nil, err
@@ -36,7 +37,7 @@ func New(config *Config) (*Server, error) {
 		Listener: listener,
 	}
 
-	if config.Directory == "" {
+	if config.Directory == "." {
 		server.Directory = "/"
 	} else {
 		server.Directory = config.Directory
