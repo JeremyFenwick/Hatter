@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"log"
 	"net"
+	"strconv"
+	"strings"
 
 	"github.com/codecrafters-io/http-server-starter-go/app/http"
 )
@@ -29,6 +31,7 @@ func HttpHandler(conn net.Conn, logger *log.Logger) {
 		response = http.NotFound()
 	}
 
+	// Send response
 	logger.Println("Sending response: %s", response)
 	bytesWritten, err := conn.Write(response.Encode())
 	if err != nil {
@@ -38,10 +41,22 @@ func HttpHandler(conn net.Conn, logger *log.Logger) {
 }
 
 func handleGet(request *http.Request) *http.Response {
-	switch request.Target {
-	case "/":
+	switch {
+	case request.Target == "/":
 		return http.Ok()
+	case strings.HasPrefix(request.Target, "/echo/"):
+		return handleEcho(request.Target[6:])
 	default:
 		return http.NotFound()
 	}
+}
+
+func handleEcho(message string) *http.Response {
+	response := http.Ok()
+	response.Headers = map[string]string{
+		"Content-Type":   "text/plain",
+		"Content-Length": strconv.Itoa(len(message)),
+	}
+	response.Body = []byte(message)
+	return response
 }
