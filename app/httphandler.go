@@ -28,38 +28,40 @@ const (
 func HttpHandler(context tcp_server.Context) {
 	defer context.Connection.Close()
 
-	// Read request
 	reader := bufio.NewReader(context.Connection)
 	writer := bufio.NewWriter(context.Connection)
 
-	request, err := http.ReadRequest(reader)
-	if err != nil {
-		context.Logger.Printf("Error reading request: %s", err)
-		return
-	}
-
-	// Generate response
-	var response *http.Response
-	context.Logger.Printf("Received request: %s", request)
-
-	switch request.Method {
-	case "GET":
-		response, err = handleGet(request, context.FileStore)
+	for {
+		// Read request
+		request, err := http.ReadRequest(reader)
 		if err != nil {
-			context.Logger.Printf("Error handling request: %s", err)
+			context.Logger.Printf("Error reading request: %s", err)
 			return
 		}
-	case "POST":
-		response = handlePost(request, context.FileStore)
-	default:
-		response = http.NotFound()
-	}
 
-	// Send response
-	context.Logger.Println("Sending response: %s", response)
-	err = response.WriteTo(writer)
-	if err != nil {
-		context.Logger.Printf("Error writing response: %s", err)
+		// Generate response
+		var response *http.Response
+		context.Logger.Printf("Received request: %s", request)
+
+		switch request.Method {
+		case "GET":
+			response, err = handleGet(request, context.FileStore)
+			if err != nil {
+				context.Logger.Printf("Error handling request: %s", err)
+				return
+			}
+		case "POST":
+			response = handlePost(request, context.FileStore)
+		default:
+			response = http.NotFound()
+		}
+
+		// Send response
+		context.Logger.Println("Sending response: %s", response)
+		err = response.WriteTo(writer)
+		if err != nil {
+			context.Logger.Printf("Error writing response: %s", err)
+		}
 	}
 }
 

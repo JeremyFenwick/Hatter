@@ -19,7 +19,7 @@ type Response struct {
 var bufferPool = sync.Pool{
 	New: func() any {
 		b := make([]byte, 0, ResponseCapacity)
-		return &b
+		return b
 	},
 }
 
@@ -30,8 +30,7 @@ func (response *Response) Log() string {
 // WriteTo - turn the response into a byte array
 // Designed to make use of a buffer pool
 func (response *Response) WriteTo(writer *bufio.Writer) error {
-	bufferPtr := bufferPool.Get().(*[]byte)
-	buffer := *bufferPtr
+	buffer := bufferPool.Get().([]byte)
 
 	// Status line
 	buffer = loadString(buffer, "HTTP/")
@@ -68,8 +67,7 @@ func (response *Response) WriteTo(writer *bufio.Writer) error {
 	}
 
 	// Reset length and put back into pool
-	*bufferPtr = buffer[:0]
-	bufferPool.Put(bufferPtr)
+	bufferPool.Put(buffer[:0])
 
 	return nil
 }
