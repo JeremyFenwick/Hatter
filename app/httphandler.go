@@ -41,17 +41,20 @@ func HttpHandler(conn net.Conn, logger *log.Logger) {
 }
 
 func handleGet(request *http.Request) *http.Response {
+	if value, ok := request.Headers["User-Agent"]; ok {
+		return simpleResponse(value)
+	}
 	switch {
 	case request.Target == "/":
 		return http.Ok()
 	case strings.HasPrefix(request.Target, "/echo/"):
-		return handleEcho(request.Target[6:])
+		return simpleResponse(request.Target[6:])
 	default:
 		return http.NotFound()
 	}
 }
 
-func handleEcho(message string) *http.Response {
+func simpleResponse(message string) *http.Response {
 	response := http.Ok()
 	response.Headers = map[string]string{
 		"Content-Type":   "text/plain",
