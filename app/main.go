@@ -17,7 +17,7 @@ func main() {
 	server, err := tcp_server.New(&tcp_server.Config{
 		Address: addr,
 		Logger:  logger,
-		Handler: nil,
+		Handler: HttpHandler,
 	})
 	if err != nil {
 		logger.Fatal(err)

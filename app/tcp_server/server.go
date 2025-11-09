@@ -12,7 +12,7 @@ type Server struct {
 	Listener *net.TCPListener
 }
 
-type HandlerFunc func(conn net.Conn)
+type HandlerFunc func(conn net.Conn, logger *log.Logger)
 
 type Config struct {
 	Address *net.TCPAddr
@@ -33,26 +33,27 @@ func New(config *Config) (*Server, error) {
 	}, nil
 }
 
-func (s *Server) Serve() error {
-	defer s.Close()
+func (server *Server) Serve() error {
+	defer server.Close()
 
-	s.Logger.Println("Listening on", s.Listener.Addr())
+	server.Logger.Println("Listening on", server.Listener.Addr())
 	for {
-		conn, err := s.Listener.Accept()
+		conn, err := server.Listener.Accept()
 		if err != nil {
+			// Temporary errors are ok, we can just continue
 			var ne net.Error
 			if errors.As(err, &ne) && ne.Temporary() {
-				s.Logger.Println("Temporary accept error:", err)
+				server.Logger.Println("Temporary accept error:", err)
 				continue
 			}
 			return err
 		}
-
-		s.Logger.Println("Accepted connection from", conn.RemoteAddr())
-		go s.Handler(conn)
+		// Accepted connection, start a goroutine to handle it
+		server.Logger.Println("Accepted connection from", conn.RemoteAddr())
+		go server.Handler(conn, server.Logger)
 	}
 }
 
-func (s *Server) Close() error {
-	return s.Listener.Close()
+func (server *Server) Close() error {
+	return server.Listener.Close()
 }
