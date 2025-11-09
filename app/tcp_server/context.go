@@ -8,9 +8,10 @@ import (
 type Context struct {
 	Connection net.Conn
 	Logger     *log.Logger
-	GetFile    GetFileFunc
-	CreateFile CreateFileFunc
+	FileStore  FileStore
 }
 
-type GetFileFunc func(filename string) ([]byte, error)
-type CreateFileFunc func(filename string, data []byte) error
+type FileStore interface {
+	GetFile(filename string) ([]byte, error)
+	CreateFile(filename string, data []byte) error
+}

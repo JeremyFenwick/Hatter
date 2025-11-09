@@ -53,9 +53,9 @@ func TestResponseEncode(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			encoded := tt.response.Encode()
+			encoded := tt.response.WriteTo()
 			if !bytes.Equal(encoded, tt.expected) {
-				t.Errorf("Encode() = %q, want %q", encoded, tt.expected)
+				t.Errorf("WriteTo() = %q, want %q", encoded, tt.expected)
 			}
 		})
 	}

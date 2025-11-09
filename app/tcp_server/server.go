@@ -6,13 +6,19 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"sync"
 )
+
+const DefaultCacheSize = 1000
 
 type Server struct {
 	Logger    *log.Logger
 	Handler   HandlerFunc
 	Listener  *net.TCPListener
 	Directory string
+	Cache     map[string][]byte
+	Mutex     sync.RWMutex
+	CacheSize int
 }
 
 type HandlerFunc func(ctx Context)
@@ -25,16 +31,18 @@ type Config struct {
 }
 
 func New(config *Config) (*Server, error) {
-	config.Logger.Println("Creating server with address: %s", config.Address)
+	config.Logger.Printf("Creating server with address: %s", config.Address)
 	listener, err := net.ListenTCP("tcp", config.Address)
 	if err != nil {
 		return nil, err
 	}
 
 	server := &Server{
-		Logger:   config.Logger,
-		Handler:  config.Handler,
-		Listener: listener,
+		Logger:    config.Logger,
+		Handler:   config.Handler,
+		Listener:  listener,
+		Cache:     make(map[string][]byte),
+		CacheSize: DefaultCacheSize,
 	}
 
 	if config.Directory == "." {
@@ -56,18 +64,17 @@ func (server *Server) Serve() error {
 			// Temporary errors are ok, we can just continue
 			var ne net.Error
 			if errors.As(err, &ne) && ne.Temporary() {
-				server.Logger.Println("Temporary accept error:", err)
+				server.Logger.Printf("Temporary accept error: %s", err)
 				continue
 			}
 			return err
 		}
 		// Accepted connection, start a goroutine to handle it
-		server.Logger.Println("Accepted connection from", conn.RemoteAddr())
+		server.Logger.Printf("Accepted connection from: %s", conn.RemoteAddr())
 		context := Context{
 			Connection: conn,
 			Logger:     server.Logger,
-			GetFile:    server.GetFile,
-			CreateFile: server.CreateFile,
+			FileStore:  server,
 		}
 		go server.Handler(context)
 	}
@@ -78,23 +85,50 @@ func (server *Server) Close() error {
 }
 
 func (server *Server) GetFile(filename string) ([]byte, error) {
+	// Check cache with RLock
+	server.Mutex.RLock()
+	cached, ok := server.Cache[filename]
+	server.Mutex.RUnlock()
+	if ok {
+		return cached, nil
+	}
+
+	// Read file from disk
 	fileDir := filepath.Join(server.Directory, filename)
-	server.Logger.Println("Attempting to open file: &s", fileDir)
+	server.Logger.Printf("Attempting to open file: %s", fileDir)
 	file, err := os.ReadFile(fileDir)
 	if err != nil {
-		server.Logger.Println("Error serving file:", err)
+		server.Logger.Printf("Error serving file: %s", err)
 		return nil, err
 	}
+
+	// Write to cache under Lock
+	server.Mutex.Lock()
+	if len(server.Cache) >= server.CacheSize {
+		server.Cache = make(map[string][]byte, server.CacheSize)
+	}
+	server.Cache[filename] = file
+	server.Mutex.Unlock()
+
 	return file, nil
 }
 
 func (server *Server) CreateFile(filename string, data []byte) error {
+	server.Mutex.Lock()
+	defer server.Mutex.Unlock()
+
 	fileDir := filepath.Join(server.Directory, filename)
-	server.Logger.Println("Attempting to create file: &s", fileDir)
+	server.Logger.Printf("Attempting to create file: %s", fileDir)
 	err := os.WriteFile(fileDir, data, 0644)
 	if err != nil {
-		server.Logger.Println("Error creating file:", err)
+		server.Logger.Printf("Error creating file: %s", err)
 		return err
 	}
+
+	// Cache the file
+	if len(server.Cache) >= server.CacheSize {
+		server.Cache = make(map[string][]byte, server.CacheSize)
+	}
+	server.Cache[filename] = data
 	return nil
 }

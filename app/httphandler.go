@@ -2,6 +2,8 @@
 
 import (
 	"bufio"
+	"bytes"
+	"compress/gzip"
 	"strconv"
 	"strings"
 
@@ -9,43 +11,62 @@ import (
 	"github.com/codecrafters-io/http-server-starter-go/app/tcp_server"
 )
 
+type Compression int
+
+const (
+	None = iota
+	Gzip
+)
+
+type Content int
+
+const (
+	Text = iota
+	Data
+)
+
 func HttpHandler(context tcp_server.Context) {
 	defer context.Connection.Close()
 
 	// Read request
 	reader := bufio.NewReader(context.Connection)
+	writer := bufio.NewWriter(context.Connection)
+
 	request, err := http.ReadRequest(reader)
 	if err != nil {
-		context.Logger.Println("Error reading request:", err)
+		context.Logger.Printf("Error reading request: %s", err)
 		return
 	}
 
 	// Generate response
 	var response *http.Response
-	context.Logger.Println("Received request: %s", request)
+	context.Logger.Printf("Received request: %s", request)
 
 	switch request.Method {
 	case "GET":
-		response = handleGet(request, context.GetFile)
+		response, err = handleGet(request, context.FileStore)
+		if err != nil {
+			context.Logger.Printf("Error handling request: %s", err)
+			return
+		}
 	case "POST":
-		response = handlePost(request, context.CreateFile)
+		response = handlePost(request, context.FileStore)
 	default:
 		response = http.NotFound()
 	}
 
 	// Send response
 	context.Logger.Println("Sending response: %s", response)
-	bytesWritten, err := context.Connection.Write(response.Encode())
+	err = response.WriteTo(writer)
 	if err != nil {
-		context.Logger.Println("Error writing response:", err)
+		context.Logger.Printf("Error writing response: %s", err)
 	}
-	context.Logger.Println("Wrote %d bytes", bytesWritten)
 }
 
-func handlePost(request *http.Request, createFile tcp_server.CreateFileFunc) *http.Response {
+func handlePost(request *http.Request, fileStore tcp_server.FileStore) *http.Response {
 	switch {
 	case strings.HasPrefix(request.Target, "/files/"):
-		err := createFile(request.Target[7:], request.Body)
+		err := fileStore.CreateFile(request.Target[7:], request.Body)
 		if err != nil {
 			return http.NotFound()
 		}
@@ -54,42 +75,86 @@ func handlePost(request *http.Request, createFile tcp_server.CreateFileFunc) *ht
 		return http.NotFound()
 	}
 }
-func handleGet(request *http.Request, getFile tcp_server.GetFileFunc) *http.Response {
-	if value, ok := request.Headers["User-Agent"]; ok {
-		return textResponse(value)
+func handleGet(request *http.Request, fileStore tcp_server.FileStore) (*http.Response, error) {
+	// Check for compression
+	compression := Compression(None)
+	if encoding, ok := request.Headers["Accept-Encoding"]; ok {
+		if strings.Contains(encoding, "gzip") {
+			compression = Gzip
+		}
 	}
+
+	// Check for the user agent
+	if value, ok := request.Headers["User-Agent"]; ok {
+		return generateResponse([]byte(value), Text, compression)
+	}
+	// Check for the target
 	switch {
 	case request.Target == "/":
-		return http.Ok()
+		return http.Ok(), nil
 	case strings.HasPrefix(request.Target, "/echo/"):
-		return textResponse(request.Target[6:])
+		return generateResponse([]byte(request.Target[6:]), Text, compression)
 	case strings.HasPrefix(request.Target, "/files/"):
-		fileData, err := getFile(request.Target[7:])
+		fileData, err := fileStore.GetFile(request.Target[7:])
 		if err != nil {
-			return http.NotFound()
+			return http.NotFound(), nil
 		}
-		return dataResponse(fileData)
+		return generateResponse(fileData, Data, compression)
 	default:
-		return http.NotFound()
+		return http.NotFound(), nil
 	}
 }
 
-func textResponse(message string) *http.Response {
+func generateResponse(message []byte, content Content, compression Compression) (*http.Response, error) {
+	// Setup the response
 	response := http.Ok()
-	response.Headers = map[string]string{
-		"Content-Type":   "text/plain",
-		"Content-Length": strconv.Itoa(len(message)),
-	}
-	response.Body = []byte(message)
-	return response
-}
+	response.Headers = map[string]string{}
+	var data []byte
+	var err error
 
-func dataResponse(data []byte) *http.Response {
-	response := http.Ok()
-	response.Headers = map[string]string{
-		"Content-Type":   "application/octet-stream",
-		"Content-Length": strconv.Itoa(len(data)),
+	// Add the content type
+	switch content {
+	case Text:
+		response.Headers["Content-Type"] = "text/plain"
+	case Data:
+		response.Headers["Content-Type"] = "application/octet-stream"
 	}
+
+	// Add the compression if required
+	switch compression {
+	case Gzip:
+		data, err = gZipCompression(message)
+		if err != nil {
+			return nil, err
+		}
+		response.Headers["Content-Encoding"] = "gzip"
+	default:
+		data = message
+	}
+
+	// Add the content length
+	response.Headers["Content-Length"] = strconv.Itoa(len(data))
+
+	// Add the body
 	response.Body = data
-	return response
+
+	// Return the response
+	return response, nil
+}
+
+func gZipCompression(data []byte) (compressed []byte, err error) {
+	var buffer bytes.Buffer
+
+	writer := gzip.NewWriter(&buffer)
+	_, err = writer.Write(data)
+	if err != nil {
+		return nil, err
+	}
+
+	err = writer.Close()
+	if err != nil {
+		return nil, err
+	}
+
+	return buffer.Bytes(), nil
 }

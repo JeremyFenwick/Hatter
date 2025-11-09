@@ -19,7 +19,7 @@ type Request struct {
 
 func ReadRequest(reader *bufio.Reader) (*Request, error) {
 	request := &Request{}
-	// Get the request line (e.g., "GET / HTTP/1.1\r\n")
+	// Get the request line ("GET / HTTP/1.1\r\n")
 	line, err := reader.ReadString('\n')
 	if err != nil {
 		return nil, err
