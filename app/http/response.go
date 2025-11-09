@@ -62,6 +62,14 @@ func NotFound() *Response {
 	}
 }
 
+func Created() *Response {
+	return &Response{
+		Version: "1.1",
+		Status:  201,
+		Reason:  "Created",
+	}
+}
+
 func (response *Response) sizedBuffer() []byte {
 	size := 0
 	// Status line

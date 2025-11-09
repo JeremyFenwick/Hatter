@@ -67,6 +67,7 @@ func (server *Server) Serve() error {
 			Connection: conn,
 			Logger:     server.Logger,
 			GetFile:    server.GetFile,
+			CreateFile: server.CreateFile,
 		}
 		go server.Handler(context)
 	}
@@ -85,4 +86,15 @@ func (server *Server) GetFile(filename string) ([]byte, error) {
 		return nil, err
 	}
 	return file, nil
+}
+
+func (server *Server) CreateFile(filename string, data []byte) error {
+	fileDir := filepath.Join(server.Directory, filename)
+	server.Logger.Println("Attempting to create file: &s", fileDir)
+	err := os.WriteFile(fileDir, data, 0644)
+	if err != nil {
+		server.Logger.Println("Error creating file:", err)
+		return err
+	}
+	return nil
 }

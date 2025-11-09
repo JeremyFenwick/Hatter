@@ -26,6 +26,8 @@ func HttpHandler(context tcp_server.Context) {
 	switch request.Method {
 	case "GET":
 		response = handleGet(request, context.GetFile)
+	case "POST":
+		response = handlePost(request, context.CreateFile)
 	default:
 		response = http.NotFound()
 	}
@@ -39,6 +41,18 @@ func HttpHandler(context tcp_server.Context) {
 	context.Logger.Println("Wrote %d bytes", bytesWritten)
 }
 
+func handlePost(request *http.Request, createFile tcp_server.CreateFileFunc) *http.Response {
+	switch {
+	case request.Target == "/files/":
+		err := createFile(request.Target[7:], request.Body)
+		if err != nil {
+			return http.NotFound()
+		}
+		return http.Created()
+	default:
+		return http.NotFound()
+	}
+}
 func handleGet(request *http.Request, getFile tcp_server.GetFileFunc) *http.Response {
 	if value, ok := request.Headers["User-Agent"]; ok {
 		return textResponse(value)
