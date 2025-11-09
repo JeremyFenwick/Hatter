@@ -4,20 +4,24 @@ import (
 	"errors"
 	"log"
 	"net"
+	"os"
+	"path/filepath"
 )
 
 type Server struct {
-	Logger   *log.Logger
-	Handler  HandlerFunc
-	Listener *net.TCPListener
+	Logger    *log.Logger
+	Handler   HandlerFunc
+	Listener  *net.TCPListener
+	Directory string
 }
 
-type HandlerFunc func(conn net.Conn, logger *log.Logger)
+type HandlerFunc func(ctx Context)
 
 type Config struct {
-	Address *net.TCPAddr
-	Handler HandlerFunc
-	Logger  *log.Logger
+	Address   *net.TCPAddr
+	Handler   HandlerFunc
+	Logger    *log.Logger
+	Directory string
 }
 
 func New(config *Config) (*Server, error) {
@@ -26,11 +30,19 @@ func New(config *Config) (*Server, error) {
 		return nil, err
 	}
 
-	return &Server{
+	server := &Server{
 		Logger:   config.Logger,
 		Handler:  config.Handler,
 		Listener: listener,
-	}, nil
+	}
+
+	if config.Directory == "" {
+		server.Directory = "/"
+	} else {
+		server.Directory = config.Directory
+	}
+
+	return server, nil
 }
 
 func (server *Server) Serve() error {
@@ -50,10 +62,26 @@ func (server *Server) Serve() error {
 		}
 		// Accepted connection, start a goroutine to handle it
 		server.Logger.Println("Accepted connection from", conn.RemoteAddr())
-		go server.Handler(conn, server.Logger)
+		context := Context{
+			Connection: conn,
+			Logger:     server.Logger,
+			GetFile:    server.GetFile,
+		}
+		go server.Handler(context)
 	}
 }
 
 func (server *Server) Close() error {
 	return server.Listener.Close()
+}
+
+func (server *Server) GetFile(filename string) ([]byte, error) {
+	fileDir := filepath.Join(server.Directory, filename)
+	server.Logger.Println("Attempting to open file: &s", fileDir)
+	file, err := os.ReadFile(fileDir)
+	if err != nil {
+		server.Logger.Println("Error serving file:", err)
+		return nil, err
+	}
+	return file, nil
 }
