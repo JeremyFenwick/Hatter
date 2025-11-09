@@ -44,7 +44,7 @@ func HttpHandler(context tcp_server.Context) {
 
 func handlePost(request *http.Request, createFile tcp_server.CreateFileFunc) *http.Response {
 	switch {
-	case request.Target == "/files/":
+	case strings.HasPrefix(request.Target, "/files/"):
 		err := createFile(request.Target[7:], request.Body)
 		if err != nil {
 			return http.NotFound()
