@@ -160,11 +160,11 @@ func generateResponse(message []byte, content Content, compression Compression) 
 	return response, nil
 }
 
-func gZipCompression(data []byte) (compressed []byte, err error) {
+func gZipCompression(data []byte) ([]byte, error) {
 	var buffer bytes.Buffer
 
 	writer := gzip.NewWriter(&buffer)
-	_, err = writer.Write(data)
+	_, err := writer.Write(data)
 	if err != nil {
 		return nil, err
 	}

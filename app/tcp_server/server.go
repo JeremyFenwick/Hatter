@@ -42,6 +42,7 @@ func New(config *Config) (*Server, error) {
 		Handler:   config.Handler,
 		Listener:  listener,
 		Cache:     make(map[string][]byte),
+		Mutex:     sync.RWMutex{},
 		CacheSize: DefaultCacheSize,
 	}
 
